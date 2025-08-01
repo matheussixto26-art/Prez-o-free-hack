@@ -73,15 +73,16 @@
             background-color: #a0c7ff;
             cursor: not-allowed;
         }
+        /* Esconde elementos por padrão */
         #otp-step, #result, #task-automation-step {
-            display: none; /* Começam escondidos */
+            display: none; 
         }
         .message {
             margin-top: 1rem;
             padding: 0.75rem;
             border-radius: 6px;
             font-weight: 500;
-            display: none; /* Começa escondido */
+            display: none; 
         }
         .message-success {
             background-color: #d4edda;
@@ -116,7 +117,6 @@
                 <input type="tel" id="phone" placeholder="Ex: 11987654321" required>
                 <button id="requestCodeBtn">Enviar Código SMS</button>
             </div>
-
             <div id="otp-step" class="step">
                 <label for="otp">Código recebido por SMS</label>
                 <input type="text" id="otp" placeholder="Digite o código" required>
@@ -128,8 +128,7 @@
         
         <div id="result">
             <h3>Login Realizado com Sucesso!</h3>
-            <p>Seu token de autorização foi armazenado.</p>
-            <pre id="token-display"></pre>
+            <p>Seu token de autorização está salvo.</p>
         </div>
 
         <div id="task-automation-step">
@@ -144,13 +143,11 @@
     </div>
 
     <script>
-        // Variável para armazenar o token de autorização globalmente
+        // Variável para armazenar o token de autorização
         let authorizationToken = null;
 
         // Selecionando os elementos do DOM
         const loginContainer = document.getElementById('login-container');
-        const phoneStep = document.getElementById('phone-step');
-        const otpStep = document.getElementById('otp-step');
         const resultDiv = document.getElementById('result');
         const taskAutomationStep = document.getElementById('task-automation-step');
         
@@ -164,7 +161,6 @@
 
         const loginMessageDiv = document.getElementById('loginMessage');
         const taskMessageDiv = document.getElementById('taskMessage');
-        const tokenDisplay = document.getElementById('token-display');
 
         // Função para mostrar mensagens
         function showMessage(div, text, type = 'error') {
@@ -173,9 +169,28 @@
             div.style.display = 'block';
         }
 
+        // Função para atualizar a UI para o estado "Logado"
+        function showLoggedInState() {
+            loginContainer.style.display = 'none';
+            loginMessageDiv.style.display = 'none';
+            resultDiv.style.display = 'block';
+            taskAutomationStep.style.display = 'block';
+        }
+
+        // NOVO: Verifica se já existe um token salvo ao carregar a página
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedToken = localStorage.getItem('authToken');
+            if (savedToken) {
+                console.log("Token encontrado no localStorage. Logando automaticamente.");
+                authorizationToken = savedToken;
+                showLoggedInState();
+            }
+        });
+
         // Evento para o botão "Enviar Código SMS"
         requestCodeBtn.addEventListener('click', async (event) => {
             event.preventDefault();
+            // Lógica existente... (sem alterações aqui)
             const phoneNumber = phoneInput.value;
             if (!phoneNumber) {
                 showMessage(loginMessageDiv, 'Por favor, insira um número de telefone.');
@@ -195,8 +210,8 @@
                     throw new Error(errorData.message || 'Erro ao solicitar o código.');
                 }
                 showMessage(loginMessageDiv, 'Código enviado com sucesso! Verifique seu SMS.', 'success');
-                phoneStep.style.display = 'none';
-                otpStep.style.display = 'block';
+                document.getElementById('phone-step').style.display = 'none';
+                document.getElementById('otp-step').style.display = 'block';
             } catch (error) {
                 showMessage(loginMessageDiv, error.message);
             } finally {
@@ -210,6 +225,7 @@
             event.preventDefault();
             const phoneNumber = phoneInput.value;
             const otpCode = otpInput.value;
+            // Lógica de validação... (sem alterações aqui)
             if (!otpCode) {
                 showMessage(loginMessageDiv, 'Por favor, insira o código recebido.');
                 return;
@@ -229,15 +245,12 @@
                 }
                 const data = await response.json();
                 
-                // Armazena o token na variável global
+                // **ALTERAÇÃO PRINCIPAL**
                 authorizationToken = data.authorizationToken;
+                localStorage.setItem('authToken', authorizationToken); // Salva o token no localStorage
 
-                // Esconde o formulário de login e mostra o sucesso e a nova seção
-                loginContainer.style.display = 'none';
-                loginMessageDiv.style.display = 'none';
-                tokenDisplay.textContent = authorizationToken;
-                resultDiv.style.display = 'block';
-                taskAutomationStep.style.display = 'block';
+                // Mostra a UI de logado
+                showLoggedInState();
 
             } catch (error) {
                 showMessage(loginMessageDiv, error.message);
@@ -247,7 +260,7 @@
             }
         });
         
-        // NOVO: Evento para o botão "Concluir Tarefa"
+        // Evento para o botão "Concluir Tarefa"
         completeTaskBtn.addEventListener('click', async (event) => {
             event.preventDefault();
             const campaignId = campaignIdInput.value;
@@ -256,6 +269,7 @@
                 showMessage(taskMessageDiv, 'Por favor, insira o ID da Campanha/Tarefa.');
                 return;
             }
+            // A variável authorizationToken agora estará preenchida, mesmo após recarregar a página
             if (!authorizationToken) {
                 showMessage(taskMessageDiv, 'Erro: Token de autorização não encontrado. Faça o login novamente.');
                 return;
@@ -271,16 +285,12 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ authorizationToken, campaignId })
                 });
-
                 const data = await response.json();
-
                 if (!response.ok) {
                     throw new Error(data.message || 'Ocorreu um erro desconhecido.');
                 }
-                
                 showMessage(taskMessageDiv, data.message || 'Tarefa concluída!', 'success');
-                campaignIdInput.value = ''; // Limpa o campo após o sucesso
-
+                campaignIdInput.value = ''; 
             } catch (error) {
                 showMessage(taskMessageDiv, error.message);
             } finally {
