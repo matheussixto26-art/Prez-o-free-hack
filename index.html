@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Assistido - Prezão Free</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem 3rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        h1 {
+            color: #1c1e21;
+            margin-bottom: 1.5rem;
+        }
+        .step {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        input[type="tel"], input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            background-color: #007bff;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #a0c7ff;
+            cursor: not-allowed;
+        }
+        #otp-step, #result {
+            display: none; /* Começam escondidos */
+        }
+        #message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-weight: 500;
+            display: none; /* Começa escondido */
+        }
+        .message-success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .message-error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        #token-display {
+            background-color: #e9ecef;
+            padding: 1rem;
+            border-radius: 6px;
+            word-wrap: break-word;
+            text-align: left;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 0.8rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Login Assistido</h1>
+        
+        <div id="phone-step" class="step">
+            <label for="phone">Número de Telefone (com DDD)</label>
+            <input type="tel" id="phone" placeholder="Ex: 11987654321" required>
+            <button id="requestCodeBtn">Enviar Código SMS</button>
+        </div>
+
+        <div id="otp-step" class="step">
+            <label for="otp">Código recebido por SMS</label>
+            <input type="text" id="otp" placeholder="Digite o código" required>
+            <button id="verifyCodeBtn">Verificar e Fazer Login</button>
+        </div>
+
+        <div id="message"></div>
+        
+        <div id="result">
+            <h3>Login Realizado com Sucesso!</h3>
+            <p>Use este token para requisições autenticadas:</p>
+            <pre id="token-display"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Selecionando os elementos do DOM
+        const phoneStep = document.getElementById('phone-step');
+        const otpStep = document.getElementById('otp-step');
+        const resultDiv = document.getElementById('result');
+        
+        const phoneInput = document.getElementById('phone');
+        const otpInput = document.getElementById('otp');
+
+        const requestCodeBtn = document.getElementById('requestCodeBtn');
+        const verifyCodeBtn = document.getElementById('verifyCodeBtn');
+
+        const messageDiv = document.getElementById('message');
+        const tokenDisplay = document.getElementById('token-display');
+
+        // Função para mostrar mensagens
+        function showMessage(text, type = 'error') {
+            messageDiv.textContent = text;
+            messageDiv.className = type === 'success' ? 'message-success' : 'message-error';
+            messageDiv.style.display = 'block';
+        }
+
+        // Evento para o botão "Enviar Código SMS"
+        requestCodeBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const phoneNumber = phoneInput.value;
+
+            if (!phoneNumber) {
+                showMessage('Por favor, insira um número de telefone.');
+                return;
+            }
+
+            requestCodeBtn.disabled = true;
+            requestCodeBtn.textContent = 'Enviando...';
+            messageDiv.style.display = 'none';
+
+            try {
+                // A URL é relativa, apontando para a API no mesmo domínio da Vercel
+                const response = await fetch('/api/request-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Erro ao solicitar o código.');
+                }
+
+                showMessage('Código enviado com sucesso! Verifique seu SMS.', 'success');
+                phoneStep.style.display = 'none';
+                otpStep.style.display = 'block';
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                requestCodeBtn.disabled = false;
+                requestCodeBtn.textContent = 'Enviar Código SMS';
+            }
+        });
+
+        // Evento para o botão "Verificar e Fazer Login"
+        verifyCodeBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const phoneNumber = phoneInput.value;
+            const otpCode = otpInput.value;
+
+            if (!otpCode) {
+                showMessage('Por favor, insira o código recebido.');
+                return;
+            }
+
+            verifyCodeBtn.disabled = true;
+            verifyCodeBtn.textContent = 'Verificando...';
+            messageDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/verify-code', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phoneNumber, otpCode })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Código inválido ou expirado.');
+                }
+
+                const data = await response.json();
+
+                // Esconde o formulário e mostra o resultado
+                otpStep.style.display = 'none';
+                messageDiv.style.display = 'none';
+                tokenDisplay.textContent = data.authorizationToken;
+                resultDiv.style.display = 'block';
+
+            } catch (error) {
+                showMessage(error.message);
+            } finally {
+                verifyCodeBtn.disabled = false;
+                verifyCodeBtn.textContent = 'Verificar e Fazer Login';
+            }
+        });
+    </script>
+
+</body>
+</html>
