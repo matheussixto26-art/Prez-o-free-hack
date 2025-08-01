@@ -3,157 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login e Automação - Prezão Free</title>
+    <title>Painel de Automação</title>
     <style>
-        /* Estilos (sem alterações, mantidos como antes) */
-        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:2rem 0;background-color:#f0f2f5;color:#333}
-        .container{background-color:white;padding:2rem 3rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);text-align:center;width:100%;max-width:400px}
-        h1{color:#1c1e21;margin-bottom:.5rem}
-        h2{color:#1c1e21;margin-top:2rem;margin-bottom:1.5rem;border-top:1px solid #dddfe2;padding-top:2rem}
-        label{display:block;margin-bottom:.5rem;font-weight:600;text-align:left}
-        input[type=tel],input[type=text]{width:100%;padding:.75rem;border:1px solid #dddfe2;border-radius:6px;font-size:1rem;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;display:flex;justify-content:center;padding:2rem 0;background-color:#f0f2f5;color:#333}
+        .container{background-color:white;padding:2rem;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);width:100%;max-width:500px}
+        h1,h2{text-align:center;color:#1c1e21}
+        h2{margin-top:2rem;padding-top:2rem;border-top:1px solid #dddfe2}
+        label{display:block;margin-bottom:.5rem;font-weight:600}
+        input{width:100%;padding:.75rem;border:1px solid #dddfe2;border-radius:6px;font-size:1rem;box-sizing:border-box}
         button{width:100%;padding:.75rem;border:none;border-radius:6px;background-color:#007bff;color:white;font-size:1rem;font-weight:bold;cursor:pointer;margin-top:1rem;transition:background-color .2s}
-        button:hover{background-color:#0056b3}
+        button:hover:not(:disabled){background-color:#0056b3}
         button:disabled{background-color:#a0c7ff;cursor:not-allowed}
-        #otp-step,#result,#task-automation-step{display:none}
-        .message{margin-top:1rem;padding:.75rem;border-radius:6px;font-weight:500;display:none}
-        .message-success{background-color:#d4edda;color:#155724;border:1px solid #c3e6cb}
-        .message-error{background-color:#f8d7da;color:#721c24;border:1px solid #f5c6cb}
-        /* NOVO: Estilo para a resposta do servidor */
-        #taskResponse {
-            background-color: #e9ecef;
-            padding: 1rem;
-            border-radius: 6px;
-            word-wrap: break-word;
-            text-align: left;
-            font-family: "Courier New", Courier, monospace;
-            font-size: 0.8rem;
-            margin-top: 1rem;
-            display: none; /* Começa escondido */
-        }
+        #logged-in-section, #otp-step{display:none}
+        .message{margin-top:1rem;padding:.75rem;border-radius:6px;font-weight:500;text-align:center}
+        .message-success{background-color:#d4edda;color:#155724}
+        .message-error{background-color:#f8d7da;color:#721c24}
+        #automation-log, .error-details{width:100%;background-color:#222;color:#eee;font-family:monospace;font-size:.8rem;border:1px solid #444;border-radius:6px;margin-top:1rem;padding:10px;box-sizing:border-box;overflow-y:auto;white-space:pre-wrap}
+        #automation-log{height:200px;color:#0f0;}
     </style>
 </head>
 <body>
-
     <div class="container">
-        <h1>Login e Automação</h1>
-        
-        <div id="login-container">
-            <div id="phone-step"><label for="phone">Número de Telefone (com DDD)</label><input type="tel" id="phone" placeholder="Ex: 11987654321" required><button id="requestCodeBtn">Enviar Código SMS</button></div>
-            <div id="otp-step"><label for="otp">Código recebido por SMS</label><input type="text" id="otp" placeholder="Digite o código" required><button id="verifyCodeBtn">Verificar e Fazer Login</button></div>
+        <h1>Painel de Automação</h1>
+        <div id="login-section">
+            <div id="phone-step"><label for="phone">Telefone (com DDD)</label><input type="tel" id="phone" placeholder="11987654321"><button id="requestCodeBtn">Enviar Código</button></div>
+            <div id="otp-step"><label for="otp">Código SMS</label><input type="text" id="otp" placeholder="Digite o código"><button id="verifyCodeBtn">Fazer Login</button></div>
+            <div id="loginMessage" class="message" style="display:none;"></div>
         </div>
-
-        <div id="loginMessage" class="message"></div>
-        <div id="result"><h3>Login Realizado com Sucesso!</h3><p>Seu token de autorização está salvo.</p></div>
-
-        <div id="task-automation-step">
-            <h2>Automação de Tarefas</h2>
-            <div><label for="campaignIdInput">ID da Campanha/Tarefa</label><input type="text" id="campaignIdInput" placeholder="Cole o ID da campanha aqui"><button id="completeTaskBtn">Concluir Tarefa</button></div>
-            <div id="taskMessage" class="message"></div>
-            <pre id="taskResponse"></pre>
+        <div id="logged-in-section">
+            <h2>Tarefas</h2>
+            <button id="getTasksBtn">1. Buscar Tarefas Disponíveis</button>
+            <button id="completeAllTasksBtn" disabled>2. Concluir Todas as Tarefas</button>
+            <div id="taskMessage" class="message" style="display:none;"></div>
+            <h3>Log de Automação:</h3>
+            <div id="automation-log">Aguardando ações...</div>
         </div>
     </div>
 
     <script>
         let authorizationToken = null;
-        const loginContainer = document.getElementById('login-container');
-        const resultDiv = document.getElementById('result');
-        const taskAutomationStep = document.getElementById('task-automation-step');
-        const phoneInput = document.getElementById('phone');
-        const otpInput = document.getElementById('otp');
-        const campaignIdInput = document.getElementById('campaignIdInput');
-        const requestCodeBtn = document.getElementById('requestCodeBtn');
-        const verifyCodeBtn = document.getElementById('verifyCodeBtn');
-        const completeTaskBtn = document.getElementById('completeTaskBtn');
-        const loginMessageDiv = document.getElementById('loginMessage');
-        const taskMessageDiv = document.getElementById('taskMessage');
-        // NOVO
-        const taskResponsePre = document.getElementById('taskResponse');
-
-        function showMessage(div, text, type = 'error') {
-            div.textContent = text;
-            div.className = `message ${type === 'success' ? 'message-error' : 'message-success'}`;
-            div.style.display = 'block';
-        }
-
-        function showLoggedInState() {
-            loginContainer.style.display = 'none';
-            loginMessageDiv.style.display = 'none';
-            resultDiv.style.display = 'block';
-            taskAutomationStep.style.display = 'block';
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedToken = localStorage.getItem('authToken');
-            if (savedToken) {
-                authorizationToken = savedToken;
-                showLoggedInState();
+        let availableTasks = [];
+        const ui = {
+            loginSection: document.getElementById('login-section'), loggedInSection: document.getElementById('logged-in-section'), phoneStep: document.getElementById('phone-step'), otpStep: document.getElementById('otp-step'), loginMessage: document.getElementById('loginMessage'), taskMessage: document.getElementById('taskMessage'), automationLog: document.getElementById('automation-log'), getTasksBtn: document.getElementById('getTasksBtn'), completeAllTasksBtn: document.getElementById('completeAllTasksBtn'), phoneInput: document.getElementById('phone'), otpInput: document.getElementById('otp'), requestCodeBtn: document.getElementById('requestCodeBtn'), verifyCodeBtn: document.getElementById('verifyCodeBtn')
+        };
+        const showMessage = (el, text, type, details) => {
+            let detailsHtml = '';
+            if (details) {
+                detailsHtml = `<pre class="error-details">${JSON.stringify(details, null, 2)}</pre>`;
             }
+            el.innerHTML = text + detailsHtml;
+            el.className = `message message-${type}`;
+            el.style.display = 'block';
+        };
+        const log = (text) => { ui.automationLog.innerHTML += `${text}\n`; ui.automationLog.scrollTop = ui.automationLog.scrollHeight; };
+        const showLoggedInState = () => { ui.loginSection.style.display = 'none'; ui.loggedInSection.style.display = 'block'; log('Login bem-sucedido. Pronto para buscar tarefas.'); };
+        const fetchApi = async (endpoint, body) => {
+            const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const data = await response.json();
+            if (!response.ok) throw data; // Lança o objeto de erro inteiro
+            return data;
+        };
+        document.addEventListener('DOMContentLoaded', () => { const savedToken = localStorage.getItem('authToken'); if (savedToken) { authorizationToken = savedToken; showLoggedInState(); } });
+        ui.requestCodeBtn.addEventListener('click', async () => {
+            const phoneNumber = ui.phoneInput.value; if (!phoneNumber) return showMessage(ui.loginMessage, 'Insira o telefone.', 'error'); ui.requestCodeBtn.disabled = true;
+            try { await fetchApi('/api/request-code', { phoneNumber }); showMessage(ui.loginMessage, 'Código enviado.', 'success'); ui.phoneStep.style.display = 'none'; ui.otpStep.style.display = 'block'; } 
+            catch (e) { showMessage(ui.loginMessage, e.message, 'error', e.details); } finally { ui.requestCodeBtn.disabled = false; }
         });
-
-        requestCodeBtn.addEventListener('click', async (event) => {
-            event.preventDefault();
-            const phoneNumber = phoneInput.value;
-            if (!phoneNumber) { showMessage(loginMessageDiv, 'Por favor, insira um número de telefone.'); return; }
-            requestCodeBtn.disabled = true; requestCodeBtn.textContent = 'Enviando...'; loginMessageDiv.style.display = 'none';
-            try {
-                const response = await fetch('/api/request-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber }) });
-                if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Erro ao solicitar o código.'); }
-                showMessage(loginMessageDiv, 'Código enviado com sucesso! Verifique seu SMS.', 'success');
-                document.getElementById('phone-step').style.display = 'none';
-                document.getElementById('otp-step').style.display = 'block';
-            } catch (error) { showMessage(loginMessageDiv, error.message); } finally { requestCodeBtn.disabled = false; requestCodeBtn.textContent = 'Enviar Código SMS'; }
+        ui.verifyCodeBtn.addEventListener('click', async () => {
+            const phoneNumber = ui.phoneInput.value; const otpCode = ui.otpInput.value; if (!otpCode) return showMessage(ui.loginMessage, 'Insira o código.', 'error'); ui.verifyCodeBtn.disabled = true;
+            try { const data = await fetchApi('/api/verify-code', { phoneNumber, otpCode }); authorizationToken = data.authorizationToken; localStorage.setItem('authToken', authorizationToken); showLoggedInState(); } 
+            catch (e) { showMessage(ui.loginMessage, e.message, 'error', e.details); } finally { ui.verifyCodeBtn.disabled = false; }
         });
-
-        verifyCodeBtn.addEventListener('click', async (event) => {
-            event.preventDefault();
-            const phoneNumber = phoneInput.value; const otpCode = otpInput.value;
-            if (!otpCode) { showMessage(loginMessageDiv, 'Por favor, insira o código recebido.'); return; }
-            verifyCodeBtn.disabled = true; verifyCodeBtn.textContent = 'Verificando...'; loginMessageDiv.style.display = 'none';
+        ui.getTasksBtn.addEventListener('click', async () => {
+            if (!authorizationToken) return log('ERRO: Token não encontrado. Faça login.'); ui.getTasksBtn.disabled = true; log('Buscando tarefas...');
             try {
-                const response = await fetch('/api/verify-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phoneNumber, otpCode }) });
-                const data = await response.json(); // Pega a resposta da nossa API
-                // **NOVO: Depuração no console do navegador**
-                console.log("Resposta recebida de /api/verify-code:", data);
-
-                if (!response.ok || !data.authorizationToken) {
-                    throw new Error(data.message || 'Token não foi retornado pela API.');
-                }
-                authorizationToken = data.authorizationToken;
-                localStorage.setItem('authToken', authorizationToken);
-                showLoggedInState();
-            } catch (error) { showMessage(loginMessageDiv, error.message); } finally { verifyCodeBtn.disabled = false; verifyCodeBtn.textContent = 'Verificar e Fazer Login'; }
+                const data = await fetch('/api/get-tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorizationToken }) }).then(res => res.json());
+                availableTasks = data?.data?.offerWallList?.[0]?.campaignList || [];
+                if (availableTasks.length > 0) { log(`${availableTasks.length} tarefas encontradas.`); ui.completeAllTasksBtn.disabled = false; } 
+                else { log('Nenhuma tarefa encontrada. Resposta completa:'); log(JSON.stringify(data, null, 2)); }
+            } catch (e) { log(`ERRO ao buscar tarefas: ${e}`); } finally { ui.getTasksBtn.disabled = false; }
         });
-        
-        completeTaskBtn.addEventListener('click', async (event) => {
-            event.preventDefault();
-            const campaignId = campaignIdInput.value;
-            if (!campaignId) { showMessage(taskMessageDiv, 'Por favor, insira o ID da Campanha/Tarefa.'); return; }
-            if (!authorizationToken) { showMessage(taskMessageDiv, 'Erro: Token de autorização não encontrado. Faça o login novamente.'); return; }
-            
-            completeTaskBtn.disabled = true; completeTaskBtn.textContent = 'Concluindo...';
-            taskMessageDiv.style.display = 'none';
-            taskResponsePre.style.display = 'none'; // Esconde a resposta anterior
-
-            try {
-                const response = await fetch('/api/complete-task', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ authorizationToken, campaignId }) });
-                const data = await response.json();
-                if (!response.ok) { throw new Error(data.message || 'Ocorreu um erro desconhecido.'); }
-                
-                showMessage(taskMessageDiv, 'Requisição enviada com sucesso!', 'success');
-                // **NOVO: Mostra a resposta completa do servidor**
-                taskResponsePre.textContent = JSON.stringify(data, null, 2); // Formata o JSON para leitura
-                taskResponsePre.style.display = 'block';
-
-                campaignIdInput.value = ''; 
-            } catch (error) {
-                showMessage(taskMessageDiv, error.message);
-            } finally {
-                completeTaskBtn.disabled = false;
-                completeTaskBtn.textContent = 'Concluir Tarefa';
+        ui.completeAllTasksBtn.addEventListener('click', async () => {
+            if (availableTasks.length === 0) return log('Nenhuma tarefa para concluir.'); ui.completeAllTasksBtn.disabled = true; ui.getTasksBtn.disabled = true;
+            log(`--- Iniciando conclusão de ${availableTasks.length} tarefas ---`);
+            for (const task of availableTasks) {
+                const campaignId = task.id; if (!campaignId) continue; log(`> Concluindo tarefa ID: ${campaignId.substring(0, 8)}...`);
+                try { const data = await fetchApi('/api/complete-task', { authorizationToken, campaignId }); log(`  ... Sucesso!`); }
+                catch (e) { log(`  ... ERRO: ${e.message}`); }
+                await new Promise(r => setTimeout(r, 1000));
             }
+            log('--- Conclusão de todas as tarefas finalizada. ---'); ui.getTasksBtn.disabled = false;
         });
     </script>
-
 </body>
 </html>
