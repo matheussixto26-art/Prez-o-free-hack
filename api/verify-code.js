@@ -19,31 +19,48 @@ export default async function handler(req, res) {
       headers: {
         'Content-Type': 'application/json',
         'X-USER-ID': phoneNumber,
-        'X-PINCODE': otpCode, // O código OTP vai aqui
+        'X-PINCODE': otpCode,
         'X-CHANNEL': 'WEB',
         'X-APP-VERSION': '3.1.07',
       },
-      body: JSON.stringify({ token: otpCode }), // E aqui também
+      body: JSON.stringify({ token: otpCode }),
     });
+    
+    // Pega a resposta da API do Prezão
+    const responseData = await apiResponse.json();
 
     if (!apiResponse.ok) {
-        const errorData = await apiResponse.json();
-        return res.status(apiResponse.status).json(errorData);
+      // Se a resposta for um erro, envia a mensagem de erro para o front-end
+      return res.status(apiResponse.status).json({ message: responseData.message || 'Erro da API do Prezão', details: responseData });
     }
     
-    // Se a validação foi bem-sucedida, a API do Prezão retorna o token de autorização
-    const responseData = await apiResponse.json();
-    
-    // O token JWT provavelmente está dentro de 'responseData'. Inspecione a resposta real.
-    // Supondo que a resposta seja algo como { token: "ey..." }
-    const authToken = responseData.token; // Ajuste isso conforme a resposta real da API
+    // **LÓGICA MELHORADA PARA ENCONTRAR O TOKEN**
+    // A API pode retornar o token em campos com nomes diferentes. Vamos procurar em alguns lugares comuns.
+    let authToken = null;
+    if (responseData.token) {
+      authToken = responseData.token;
+    } else if (responseData.authorization) {
+      authToken = responseData.authorization;
+    } else if (responseData.accessToken) {
+      authToken = responseData.accessToken;
+    } else if (responseData.data && responseData.data.token) {
+      authToken = responseData.data.token;
+    }
 
+    if (!authToken) {
+      // Se ainda assim não encontrar o token, retorna um erro claro
+      console.error("Token não foi encontrado na resposta da API do Prezão. Resposta recebida:", responseData);
+      return res.status(500).json({ message: 'Login OK, mas o token não foi encontrado na resposta da API.', details: responseData });
+    }
+
+    // Se encontrou o token, envia para o front-end
     res.status(200).json({ 
         message: 'Login realizado com sucesso!', 
         authorizationToken: authToken 
     });
 
   } catch (error) {
-    res.status(500).json({ message: 'Erro interno no servidor', error: error.message });
+    console.error("Erro ao verificar código:", error);
+    res.status(500).json({ message: 'Erro interno no servidor ao verificar código.', error: error.message });
   }
 }
