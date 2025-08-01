@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login Assistido - Prezão Free</title>
+    <title>Login e Automação - Prezão Free</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 2rem 0;
             background-color: #f0f2f5;
             color: #333;
         }
@@ -26,7 +27,14 @@
         }
         h1 {
             color: #1c1e21;
+            margin-bottom: 0.5rem;
+        }
+        h2 {
+            color: #1c1e21;
+            margin-top: 2rem;
             margin-bottom: 1.5rem;
+            border-top: 1px solid #dddfe2;
+            padding-top: 2rem;
         }
         .step {
             margin-bottom: 1rem;
@@ -35,6 +43,7 @@
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 600;
+            text-align: left;
         }
         input[type="tel"], input[type="text"] {
             width: 100%;
@@ -64,10 +73,10 @@
             background-color: #a0c7ff;
             cursor: not-allowed;
         }
-        #otp-step, #result {
+        #otp-step, #result, #task-automation-step {
             display: none; /* Começam escondidos */
         }
-        #message {
+        .message {
             margin-top: 1rem;
             padding: 0.75rem;
             border-radius: 6px;
@@ -99,84 +108,97 @@
 <body>
 
     <div class="container">
-        <h1>Login Assistido</h1>
+        <h1>Login e Automação</h1>
         
-        <div id="phone-step" class="step">
-            <label for="phone">Número de Telefone (com DDD)</label>
-            <input type="tel" id="phone" placeholder="Ex: 11987654321" required>
-            <button id="requestCodeBtn">Enviar Código SMS</button>
+        <div id="login-container">
+            <div id="phone-step" class="step">
+                <label for="phone">Número de Telefone (com DDD)</label>
+                <input type="tel" id="phone" placeholder="Ex: 11987654321" required>
+                <button id="requestCodeBtn">Enviar Código SMS</button>
+            </div>
+
+            <div id="otp-step" class="step">
+                <label for="otp">Código recebido por SMS</label>
+                <input type="text" id="otp" placeholder="Digite o código" required>
+                <button id="verifyCodeBtn">Verificar e Fazer Login</button>
+            </div>
         </div>
 
-        <div id="otp-step" class="step">
-            <label for="otp">Código recebido por SMS</label>
-            <input type="text" id="otp" placeholder="Digite o código" required>
-            <button id="verifyCodeBtn">Verificar e Fazer Login</button>
-        </div>
-
-        <div id="message"></div>
+        <div id="loginMessage" class="message"></div>
         
         <div id="result">
             <h3>Login Realizado com Sucesso!</h3>
-            <p>Use este token para requisições autenticadas:</p>
+            <p>Seu token de autorização foi armazenado.</p>
             <pre id="token-display"></pre>
+        </div>
+
+        <div id="task-automation-step">
+            <h2>Automação de Tarefas</h2>
+            <div class="step">
+                <label for="campaignIdInput">ID da Campanha/Tarefa</label>
+                <input type="text" id="campaignIdInput" placeholder="Cole o ID da campanha aqui">
+                <button id="completeTaskBtn">Concluir Tarefa</button>
+            </div>
+            <div id="taskMessage" class="message"></div>
         </div>
     </div>
 
     <script>
+        // Variável para armazenar o token de autorização globalmente
+        let authorizationToken = null;
+
         // Selecionando os elementos do DOM
+        const loginContainer = document.getElementById('login-container');
         const phoneStep = document.getElementById('phone-step');
         const otpStep = document.getElementById('otp-step');
         const resultDiv = document.getElementById('result');
+        const taskAutomationStep = document.getElementById('task-automation-step');
         
         const phoneInput = document.getElementById('phone');
         const otpInput = document.getElementById('otp');
+        const campaignIdInput = document.getElementById('campaignIdInput');
 
         const requestCodeBtn = document.getElementById('requestCodeBtn');
         const verifyCodeBtn = document.getElementById('verifyCodeBtn');
+        const completeTaskBtn = document.getElementById('completeTaskBtn');
 
-        const messageDiv = document.getElementById('message');
+        const loginMessageDiv = document.getElementById('loginMessage');
+        const taskMessageDiv = document.getElementById('taskMessage');
         const tokenDisplay = document.getElementById('token-display');
 
         // Função para mostrar mensagens
-        function showMessage(text, type = 'error') {
-            messageDiv.textContent = text;
-            messageDiv.className = type === 'success' ? 'message-success' : 'message-error';
-            messageDiv.style.display = 'block';
+        function showMessage(div, text, type = 'error') {
+            div.textContent = text;
+            div.className = `message ${type === 'success' ? 'message-success' : 'message-error'}`;
+            div.style.display = 'block';
         }
 
         // Evento para o botão "Enviar Código SMS"
         requestCodeBtn.addEventListener('click', async (event) => {
             event.preventDefault();
             const phoneNumber = phoneInput.value;
-
             if (!phoneNumber) {
-                showMessage('Por favor, insira um número de telefone.');
+                showMessage(loginMessageDiv, 'Por favor, insira um número de telefone.');
                 return;
             }
-
             requestCodeBtn.disabled = true;
             requestCodeBtn.textContent = 'Enviando...';
-            messageDiv.style.display = 'none';
-
+            loginMessageDiv.style.display = 'none';
             try {
-                // A URL é relativa, apontando para a API no mesmo domínio da Vercel
                 const response = await fetch('/api/request-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber })
                 });
-
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.message || 'Erro ao solicitar o código.');
                 }
-
-                showMessage('Código enviado com sucesso! Verifique seu SMS.', 'success');
+                showMessage(loginMessageDiv, 'Código enviado com sucesso! Verifique seu SMS.', 'success');
                 phoneStep.style.display = 'none';
                 otpStep.style.display = 'block';
-
             } catch (error) {
-                showMessage(error.message);
+                showMessage(loginMessageDiv, error.message);
             } finally {
                 requestCodeBtn.disabled = false;
                 requestCodeBtn.textContent = 'Enviar Código SMS';
@@ -188,41 +210,82 @@
             event.preventDefault();
             const phoneNumber = phoneInput.value;
             const otpCode = otpInput.value;
-
             if (!otpCode) {
-                showMessage('Por favor, insira o código recebido.');
+                showMessage(loginMessageDiv, 'Por favor, insira o código recebido.');
                 return;
             }
-
             verifyCodeBtn.disabled = true;
             verifyCodeBtn.textContent = 'Verificando...';
-            messageDiv.style.display = 'none';
-
+            loginMessageDiv.style.display = 'none';
             try {
                 const response = await fetch('/api/verify-code', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phoneNumber, otpCode })
                 });
-
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.message || 'Código inválido ou expirado.');
                 }
-
                 const data = await response.json();
+                
+                // Armazena o token na variável global
+                authorizationToken = data.authorizationToken;
 
-                // Esconde o formulário e mostra o resultado
-                otpStep.style.display = 'none';
-                messageDiv.style.display = 'none';
-                tokenDisplay.textContent = data.authorizationToken;
+                // Esconde o formulário de login e mostra o sucesso e a nova seção
+                loginContainer.style.display = 'none';
+                loginMessageDiv.style.display = 'none';
+                tokenDisplay.textContent = authorizationToken;
                 resultDiv.style.display = 'block';
+                taskAutomationStep.style.display = 'block';
 
             } catch (error) {
-                showMessage(error.message);
+                showMessage(loginMessageDiv, error.message);
             } finally {
                 verifyCodeBtn.disabled = false;
                 verifyCodeBtn.textContent = 'Verificar e Fazer Login';
+            }
+        });
+        
+        // NOVO: Evento para o botão "Concluir Tarefa"
+        completeTaskBtn.addEventListener('click', async (event) => {
+            event.preventDefault();
+            const campaignId = campaignIdInput.value;
+
+            if (!campaignId) {
+                showMessage(taskMessageDiv, 'Por favor, insira o ID da Campanha/Tarefa.');
+                return;
+            }
+            if (!authorizationToken) {
+                showMessage(taskMessageDiv, 'Erro: Token de autorização não encontrado. Faça o login novamente.');
+                return;
+            }
+
+            completeTaskBtn.disabled = true;
+            completeTaskBtn.textContent = 'Concluindo...';
+            taskMessageDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/complete-task', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ authorizationToken, campaignId })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Ocorreu um erro desconhecido.');
+                }
+                
+                showMessage(taskMessageDiv, data.message || 'Tarefa concluída!', 'success');
+                campaignIdInput.value = ''; // Limpa o campo após o sucesso
+
+            } catch (error) {
+                showMessage(taskMessageDiv, error.message);
+            } finally {
+                completeTaskBtn.disabled = false;
+                completeTaskBtn.textContent = 'Concluir Tarefa';
             }
         });
     </script>
